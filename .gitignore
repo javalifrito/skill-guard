@@ -1,0 +1,9 @@
+cost-log.jsonl
+calibration.json
+audit-cache.json
+__pycache__/
+.DS_Store
+guard-log.jsonl
+tests/backtest-4a.txt
+scripts/*.v1-backup
+dist/

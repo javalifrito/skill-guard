@@ -1,0 +1,425 @@
+{
+ "rce.downloads-and-pipes-straight-into-a-shell": {
+  "category": "Unsafe code",
+  "what": "It downloads a program from the internet and runs it immediately, without anyone checking it first.",
+  "like": "eating food a stranger hands you without looking at it.",
+  "fix": "Delete it and rebuild from the skill's purpose; never patch.",
+  "fix_tier": "Rewrite"
+ },
+ "rce.decodes-hidden-payload-into-a-shell": {
+  "category": "Unsafe code",
+  "what": "It unscrambles hidden code and runs it right away, a classic way to hide malware.",
+  "like": "a sealed envelope that tells your computer what to do.",
+  "fix": "Delete it and rebuild from the skill's purpose; never patch.",
+  "fix_tier": "Rewrite"
+ },
+ "rce.encoded-powershell-payload": {
+  "category": "Unsafe code",
+  "what": "It runs a scrambled Windows command that nobody can read before it runs.",
+  "like": "signing a contract written in a code you can't read.",
+  "fix": "Delete it and rebuild from the skill's purpose; never patch.",
+  "fix_tier": "Rewrite"
+ },
+ "rce.dynamic-code-execution": {
+  "category": "Unsafe code",
+  "what": "The code builds commands as text and runs them, so it could run something unexpected.",
+  "like": "following instructions that get written while you walk.",
+  "fix": "Replace with a fixed command list or a safe parser.",
+  "fix_tier": "Small"
+ },
+ "rce.dynamic-js-code-execution": {
+  "category": "Unsafe code",
+  "what": "JavaScript code is created from text and run on the fly, so its behavior can't be checked in advance.",
+  "like": "a recipe that rewrites itself while you cook.",
+  "fix": "Replace with plain fixed functions.",
+  "fix_tier": "Small"
+ },
+ "rce.dynamic-import-compile": {
+  "category": "Unsafe code",
+  "what": "The code loads or builds other code while running, which can hide what it really does.",
+  "like": "a toolbox that grabs unknown tools mid-job.",
+  "fix": "Import fixed modules by name at the top.",
+  "fix_tier": "Small"
+ },
+ "rce.runs-shell-commands": {
+  "category": "Unsafe code",
+  "what": "It runs commands on your computer. Often normal, but the exact commands matter.",
+  "like": "a helper using your keyboard; fine if you see what they type.",
+  "fix": "Keep only fixed, listed commands with no user text inside.",
+  "fix_tier": "Very Small"
+ },
+ "rce.runs-a-package-fetched-at-runtime": {
+  "category": "Unsafe code",
+  "what": "It downloads and runs a package from the internet each time, and the author can change it later.",
+  "like": "a delivery that could contain something different each day.",
+  "fix": "Pin the package to one exact version.",
+  "fix_tier": "Very Small"
+ },
+ "deps.installs-dependencies": {
+  "category": "Unsafe code",
+  "what": "It installs extra software, which could be outdated, mistyped or tampered with.",
+  "like": "borrowing parts from strangers to build your gadget.",
+  "fix": "Pin every dependency to an exact version and check the names.",
+  "fix_tier": "Very Small"
+ },
+ "deps.npm-install-time-script": {
+  "category": "Unsafe code",
+  "what": "A script runs automatically the moment this package is installed, before you can look at it.",
+  "like": "a package that opens itself when it arrives.",
+  "fix": "Delete the install-time script.",
+  "fix_tier": "Very Small"
+ },
+ "secrets.touches-ssh-keys": {
+  "category": "Passwords & accounts",
+  "what": "It touches your SSH keys, the files that prove who you are to servers and GitHub.",
+  "like": "copying the master key to your house.",
+  "fix": "Remove the SSH access; it is not needed for a skill.",
+  "fix_tier": "Rewrite"
+ },
+ "secrets.touches-cloud-dev-credentials": {
+  "category": "Passwords & accounts",
+  "what": "It reads saved logins for cloud or developer tools like AWS, npm or git.",
+  "like": "reading the sticky note where you wrote your passwords.",
+  "fix": "Remove the credential read; ask for only the one value needed.",
+  "fix_tier": "Rewrite"
+ },
+ "secrets.touches-claude-credentials-config": {
+  "category": "Passwords & accounts",
+  "what": "It reads Claude's login or settings files, which could let someone use your account.",
+  "like": "borrowing your staff badge.",
+  "fix": "Remove the read of Claude credentials and config.",
+  "fix_tier": "Rewrite"
+ },
+ "secrets.reads-macos-keychain": {
+  "category": "Passwords & accounts",
+  "what": "It reads the Mac Keychain, where your saved passwords live.",
+  "like": "opening your password safe.",
+  "fix": "Remove the Keychain access.",
+  "fix_tier": "Rewrite"
+ },
+ "secrets.reads-browser-password-manager-stores": {
+  "category": "Passwords & accounts",
+  "what": "It reads browser or password-manager data: saved logins, cookies or vault files.",
+  "like": "rummaging through your wallet for cards and keys.",
+  "fix": "Remove access to browser and password-manager data.",
+  "fix_tier": "Rewrite"
+ },
+ "secrets.dumps-all-environment-variables": {
+  "category": "Passwords & accounts",
+  "what": "It collects every hidden setting on your computer, which often include passwords and keys.",
+  "like": "photographing every key on your keyring.",
+  "fix": "Read only the one named setting it truly needs.",
+  "fix_tier": "Small"
+ },
+ "secrets.mentions-secrets-tokens": {
+  "category": "Passwords & accounts",
+  "what": "The code mentions keys, tokens or passwords. It may be harmless, but how it uses them matters.",
+  "like": "a note saying 'bring the keys'; fine if they stay home.",
+  "fix": "Check use; pass only the one needed value in explicitly.",
+  "fix_tier": "Very Small"
+ },
+ "secrets.reads-env-files": {
+  "category": "Passwords & accounts",
+  "what": ".env files hold project passwords and keys, and this reads them.",
+  "like": "peeking into a drawer of spare keys.",
+  "fix": "Stop reading .env; ask the user for the one value needed.",
+  "fix_tier": "Very Small"
+ },
+ "privacy.reads-personal-data": {
+  "category": "Your private files",
+  "what": "It reads personal data like messages, contacts, mail or command history.",
+  "like": "reading your diary and mail.",
+  "fix": "Remove the personal-data read; work only on files you name.",
+  "fix_tier": "Small"
+ },
+ "privacy.screen-clipboard-keyboard-capture": {
+  "category": "Your private files",
+  "what": "It can capture your screen, clipboard or keystrokes, which may include private things.",
+  "like": "someone looking over your shoulder.",
+  "fix": "Remove the capture; use only what you give it.",
+  "fix_tier": "Small"
+ },
+ "exfil.posts-to-chat-webhook": {
+  "category": "Sends your data elsewhere",
+  "what": "It sends data to a chat webhook (Discord, Slack, Telegram), a favorite way to steal data quietly.",
+  "like": "mailing your files to a stranger's PO box.",
+  "fix": "Delete the webhook call; rebuild without outbound data.",
+  "fix_tier": "Rewrite"
+ },
+ "exfil.known-exfil-tunnel-paste-endpoint": {
+  "category": "Sends your data elsewhere",
+  "what": "It talks to a site known for catching stolen data or tunneling into computers.",
+  "like": "a courier who only works for thieves.",
+  "fix": "Delete the call; rebuild without outbound data.",
+  "fix_tier": "Rewrite"
+ },
+ "exfil.raw-network-socket-reverse-shell-pattern": {
+  "category": "Sends your data elsewhere",
+  "what": "It opens a raw network connection, the pattern attackers use to control a computer remotely.",
+  "like": "leaving a back door open for a stranger.",
+  "fix": "Delete the raw connection code.",
+  "fix_tier": "Rewrite"
+ },
+ "exfil.sends-data-over-http": {
+  "category": "Sends your data elsewhere",
+  "what": "It sends data over the internet. Fine for a stated purpose, bad if it ships your data.",
+  "like": "posting a letter; harmless unless it holds your secrets.",
+  "fix": "Limit it to one documented domain that gets no user data.",
+  "fix_tier": "Very Small"
+ },
+ "exfil.telemetry-analytics": {
+  "category": "Ads & tracking",
+  "what": "It reports how you use it to an analytics service.",
+  "like": "a shop counting visitors and watching what they do.",
+  "fix": "Delete the tracking code.",
+  "fix_tier": "Very Small"
+ },
+ "backdoor.installs-persistence": {
+  "category": "Takes over your computer",
+  "what": "It makes itself run again every time your computer starts or you log in.",
+  "like": "moving into your house and refusing to leave.",
+  "fix": "Delete the startup step; run only when invoked.",
+  "fix_tier": "Rewrite"
+ },
+ "backdoor.edits-shell-startup-files": {
+  "category": "Takes over your computer",
+  "what": "It changes files that run each time you open a terminal, so it can come back unseen.",
+  "like": "adding a hidden step to your morning routine.",
+  "fix": "Remove the edit; tell the user what to add.",
+  "fix_tier": "Small"
+ },
+ "backdoor.privilege-escalation": {
+  "category": "Takes over your computer",
+  "what": "It asks for administrator power over your computer.",
+  "like": "asking for the master key.",
+  "fix": "Remove sudo and permission changes.",
+  "fix_tier": "Small"
+ },
+ "backdoor.bypasses-macos-security": {
+  "category": "Takes over your computer",
+  "what": "It tries to switch off Mac protections like Gatekeeper, permission prompts or quarantine.",
+  "like": "disabling the alarm before entering.",
+  "fix": "Remove the security bypass.",
+  "fix_tier": "Rewrite"
+ },
+ "claude-tamper.disables-claude-permission-prompts": {
+  "category": "Takes over your computer",
+  "what": "It turns off Claude's safety questions, so it can act without asking you.",
+  "like": "cutting the brakes on a car.",
+  "fix": "Delete it; rebuild without changing Claude's permission settings.",
+  "fix_tier": "Rewrite"
+ },
+ "claude-tamper.adds-edits-claude-hooks-or-settings": {
+  "category": "Takes over your computer",
+  "what": "It changes Claude's settings or hooks, so it can run things automatically later.",
+  "like": "secretly rewiring your light switches.",
+  "fix": "Remove the edits; tell the user what to change.",
+  "fix_tier": "Small"
+ },
+ "claude-tamper.grants-itself-tool-permissions": {
+  "category": "Takes over your computer",
+  "what": "It gives itself permission to use tools without asking you.",
+  "like": "writing yourself a permission slip.",
+  "fix": "Remove the permission grant.",
+  "fix_tier": "Small"
+ },
+ "claude-tamper.writes-to-claude-memory-skills-instructions": {
+  "category": "Takes over your computer",
+  "what": "It writes into Claude's memory, rules or other skills, which can change how Claude behaves.",
+  "like": "adding notes to your assistant's handbook.",
+  "fix": "Remove the writes; tell the user what to change.",
+  "fix_tier": "Small"
+ },
+ "claude-tamper.registers-mcp-servers": {
+  "category": "Takes over your computer",
+  "what": "It connects Claude to extra tool servers that can read data or take actions.",
+  "like": "plugging in a device you haven't inspected.",
+  "fix": "Remove registration, or list each server and what it can do.",
+  "fix_tier": "Very Small"
+ },
+ "injection.instruction-override-attempt": {
+  "category": "Hidden tricks",
+  "what": "The text tries to make Claude ignore its earlier rules or yours.",
+  "like": "a note saying 'ignore your boss.'",
+  "fix": "Delete the override text; keep plain task steps.",
+  "fix_tier": "Small"
+ },
+ "injection.hides-actions-from-the-user": {
+  "category": "Hidden tricks",
+  "what": "The text tells Claude to hide what it does from you.",
+  "like": "an employee told to keep secrets from the owner.",
+  "fix": "Delete the secrecy text.",
+  "fix_tier": "Small"
+ },
+ "injection.skips-user-consent": {
+  "category": "Hidden tricks",
+  "what": "The text tells Claude to act without asking you first.",
+  "like": "a contractor who skips asking before knocking down walls.",
+  "fix": "Delete the wording; require confirmation for actions.",
+  "fix_tier": "Very Small"
+ },
+ "injection.role-system-hijack-phrasing": {
+  "category": "Hidden tricks",
+  "what": "The text tries to give Claude a new identity or rules, a known trick to take control.",
+  "like": "handing the driver a fake badge.",
+  "fix": "Delete the role-change wording.",
+  "fix_tier": "Very Small"
+ },
+ "injection.html-comment": {
+  "category": "Hidden tricks",
+  "what": "A hidden comment in Markdown that you don't see when reading, but Claude does.",
+  "like": "invisible ink on a page.",
+  "fix": "Delete the comment, or show it as plain text.",
+  "fix_tier": "Very Small"
+ },
+ "destructive.destructive-file-disk-operation": {
+  "category": "Takes over your computer",
+  "what": "It can delete files or wipe a disk, possibly beyond its own folder.",
+  "like": "a cleaner who might throw out the whole house.",
+  "fix": "Limit deletes to its own temp folder and ask first.",
+  "fix_tier": "Small"
+ },
+ "ads.advertising-affiliate-content": {
+  "category": "Ads & tracking",
+  "what": "It pushes products, affiliate links or sponsored text.",
+  "like": "a helper paid on commission for what they recommend.",
+  "fix": "Remove promo, affiliate and tracking text.",
+  "fix_tier": "Very Small"
+ },
+ "ads.self-promotion-instruction": {
+  "category": "Ads & tracking",
+  "what": "It tells Claude to recommend the author's own product or site.",
+  "like": "a waiter told to only suggest one dish.",
+  "fix": "Remove the promotion wording.",
+  "fix_tier": "Very Small"
+ },
+ "crypto.crypto-miner": {
+  "category": "Takes over your computer",
+  "what": "It uses your computer to mine cryptocurrency for someone else.",
+  "like": "someone running their machine on your power bill.",
+  "fix": "Delete the miner; rebuild without it.",
+  "fix_tier": "Rewrite"
+ },
+ "crypto.hard-coded-wallet-address": {
+  "category": "Takes over your computer",
+  "what": "It contains a crypto wallet address, which may be where money gets sent.",
+  "like": "a bank account number hidden in the instructions.",
+  "fix": "Remove the address, or explain whose it is.",
+  "fix_tier": "Very Small"
+ },
+ "filesystem.symlink": {
+  "category": "Unsafe code",
+  "what": "A shortcut file that points elsewhere, maybe to private files outside the skill.",
+  "like": "a door in the wall leading to a different house.",
+  "fix": "Remove the shortcut and include the real file.",
+  "fix_tier": "Very Small"
+ },
+ "filesystem.file-is-executable": {
+  "category": "Unsafe code",
+  "what": "The file is marked as a runnable program, not just text.",
+  "like": "a document that is actually a machine with a start button.",
+  "fix": "Check the file; remove the run flag if not needed.",
+  "fix_tier": "Script (free)"
+ },
+ "binary.compiled-binary-file": {
+  "category": "Unsafe code",
+  "what": "A compiled program nobody can read, so nobody can check what it does.",
+  "like": "a sealed box with no label.",
+  "fix": "Replace with readable source, or drop it.",
+  "fix_tier": "Small"
+ },
+ "binary.nested-archive": {
+  "category": "Unsafe code",
+  "what": "A zip or archive hiding more files that the audit can't see.",
+  "like": "a locked suitcase inside the suitcase.",
+  "fix": "Unpack and review it, or drop it.",
+  "fix_tier": "Small"
+ },
+ "filesystem.very-large-file": {
+  "category": "Unsafe code",
+  "what": "An unusually big file that is hard to review and could hide things.",
+  "like": "a huge parcel too big to open.",
+  "fix": "Remove it, or explain why it's needed.",
+  "fix_tier": "Very Small"
+ },
+ "binary.binary-content": {
+  "category": "Unsafe code",
+  "what": "A file named like text actually holds non-text data, a sign something is disguised.",
+  "like": "a book cover wrapped around a machine.",
+  "fix": "Replace with readable text, or drop it.",
+  "fix_tier": "Small"
+ },
+ "obfuscation.minified-very-long-line-in-source": {
+  "category": "Hidden tricks",
+  "what": "Code squashed into huge unreadable lines, which can hide what it does.",
+  "like": "a contract printed in one giant line of tiny type.",
+  "fix": "Replace with the readable source.",
+  "fix_tier": "Small"
+ },
+ "obfuscation.long-base64-like-blob": {
+  "category": "Hidden tricks",
+  "what": "A huge block of scrambled text that may hide code or data.",
+  "like": "a message in a code only the sender knows.",
+  "fix": "Replace with readable source.",
+  "fix_tier": "Small"
+ },
+ "obfuscation.hex-escaped-string": {
+  "category": "Hidden tricks",
+  "what": "Text written as numeric codes so you can't read it, possibly hiding a payload.",
+  "like": "a sentence written in secret symbols.",
+  "fix": "Replace with the readable text.",
+  "fix_tier": "Small"
+ },
+ "injection.invisible-bidi-tag-unicode": {
+  "category": "Hidden tricks",
+  "what": "Invisible characters in the text that can hide instructions only Claude reads.",
+  "like": "secret writing between the lines.",
+  "fix": "Delete the invisible characters.",
+  "fix_tier": "Very Small"
+ },
+ "injection.hidden-html-comment": {
+  "same_as": "injection.html-comment"
+ },
+ "deps.vendored-node-modules": {
+  "category": "Unsafe code",
+  "what": "A whole folder of third-party code is bundled in, far too much to review.",
+  "like": "shipping a warehouse of unknown boxes.",
+  "fix": "Delete the folder; list pinned dependencies instead.",
+  "fix_tier": "Very Small"
+ },
+ "filesystem.hidden-directory": {
+  "category": "Unsafe code",
+  "what": "A hidden folder that won't show in a normal file list.",
+  "like": "a room with no door handle.",
+  "fix": "Remove it, or explain why it's there.",
+  "fix_tier": "Script (free)"
+ },
+ "filesystem.hidden-file": {
+  "category": "Unsafe code",
+  "what": "A hidden file that won't show in a normal file list.",
+  "like": "a note tucked behind a picture frame.",
+  "fix": "Remove it, or explain why it's there.",
+  "fix_tier": "Script (free)"
+ },
+ "filesystem.unreadable": {
+  "category": "Unsafe code",
+  "what": "The scanner couldn't open this file, so it wasn't checked.",
+  "like": "a locked drawer nobody could look inside.",
+  "fix": "Make the file readable, or remove it.",
+  "fix_tier": "Very Small"
+ },
+ "secrets.password-manager-cli": {
+  "category": "Passwords & accounts",
+  "what": "It runs the 1Password or Bitwarden command line to pull saved passwords and secrets out of your vault.",
+  "like": "asking your bank vault's clerk to hand over your keys.",
+  "fix": "Remove the vault call; ask the user to pass only the one value needed.",
+  "fix_tier": "Small"
+ },
+ "secrets.secret-sent-over-network": {
+  "category": "Sends your data elsewhere",
+  "what": "A key, token or password is used in a command that sends data over the internet.",
+  "like": "writing your house key's code on a postcard.",
+  "fix": "Delete the call, or confirm the secret goes only to its own service.",
+  "fix_tier": "Small"
+ }
+}

@@ -1,0 +1,1 @@
+{"hooks":{"PreToolUse":[{"matcher":"Bash|Write|Edit|MultiEdit|NotebookEdit","hooks":[{"type":"command","command":"python3 -I -B \"$HOME/.claude/skills/skill-security-audit/scripts/guard_hook.py\""}]}]}}

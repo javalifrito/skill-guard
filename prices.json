@@ -1,0 +1,22 @@
+{
+ "date": "2026-11-08",
+ "source": "claude-api skill, shared/models.md (Current Models table cached 2026-10-06); base rates, no batch/cache discounts; Haiku rate for prompts <=100K",
+ "unit": "USD per million tokens",
+ "models": {
+  "opus": {
+   "id": "claude-opus-5-5",
+   "input": 4,
+   "output": 20
+  },
+  "sonnet": {
+   "id": "claude-sonnet-5-5",
+   "input": 2,
+   "output": 10
+  },
+  "haiku": {
+   "id": "claude-haiku-5-5",
+   "input": 0.1,
+   "output": 0.5
+  }
+ }
+}

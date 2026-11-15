@@ -12,7 +12,11 @@ import sys
 KEYWORDS = ("skills", "plugin", "mcp", ".claude", "marketplace", "hooks", "claude_desktop")
 WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 OWN_DIR_PARTS = (".claude", "skills", "skill-security-audit")
-OWN_FILES = ("audit-log.md", "audit-cache.json", "cost-log.jsonl", "calibration.json")
+SILENT_FILES = ("cost-log.jsonl", "calibration.json")  # the skill's own logs: no prompt
+AUDIT_FILES = ("audit-log.md", "audit-cache.json")  # audit results: always a human confirm
+AUDIT_MSG = "Recording an audit result. Confirm it matches the verdict you were shown."
+FALLBACK_MSG = "This command changes Claude's skills, plugins or settings. Confirm you want it."
+CONFIG_NAMES = (".mcp.json", ".claude.json", "claude_desktop_config.json")
 FACTORY = "obsidian vault/projects/03 skills-plugins factory/"
 STALE_DAYS = 7
 HOME = os.environ.get("HOME") or os.path.expanduser("~")
@@ -93,15 +97,34 @@ def folders_re():
     return re.compile(r"(^|/)\.claude/(skills|agents|commands|plugins|hooks)(/|$)")
 
 
+def p_kind(path, broad=False):
+    """Is this path a protected place (P)? -> None | 'audit' | 'p'.
+    broad=True (shell arguments only) also counts the bare .claude folder and globs directly under it."""
+    import re
+    import posixpath
+    p = expand(path).lower()
+    base = posixpath.basename(p)
+    if posixpath.dirname(p) == posixpath.join(HOME, *OWN_DIR_PARTS).lower() and base in AUDIT_FILES:
+        return "audit"
+    if (re.search(r"(^|/)\.claude/settings[^/]*\.json$", p) or base in CONFIG_NAMES
+            or folders_re().search(p)):
+        return "p"
+    if broad and (re.search(r"(^|/)\.claude$", p) or re.search(r"(^|/)\.claude/[^/]*[*?\[{]", p)):
+        return "p"
+    return None
+
+
 def check_write(path):
     import re
     import posixpath
     p = expand(path).lower()
     base = posixpath.basename(p)
-    if posixpath.dirname(p) == posixpath.join(HOME, *OWN_DIR_PARTS).lower() and base in OWN_FILES:
-        return None
-    if (re.search(r"(^|/)\.claude/settings[^/]*\.json$", p)
-            or base in (".mcp.json", ".claude.json", "claude_desktop_config.json")):
+    if posixpath.dirname(p) == posixpath.join(HOME, *OWN_DIR_PARTS).lower():
+        if base in SILENT_FILES:
+            return None
+        if base in AUDIT_FILES:
+            return ("ask", path, AUDIT_MSG)
+    if (re.search(r"(^|/)\.claude/settings[^/]*\.json$", p) or base in CONFIG_NAMES):
         return ("ask", path, "Config change: %s. Confirm you want this edit." % path)
     if folders_re().search(p):
         return ("ask", path, "Write into a skills/agents/commands/plugins/hooks folder: %s. "
@@ -203,7 +226,8 @@ def lookup(cands, ref_flag=None):
             return ("deny", raw, "Audit for %s is stale (%s, %d days old): re-audit, the source may have changed." % (raw, date, age))
         if ref and kind == "repo" and sha and not (sha.startswith(ref) or ref.startswith(sha)):
             return ("deny", raw, "Audited %s, installing %s. Re-audit that ref first." % (sha, ref))
-        return ("ask", raw, "Audited %s: %s for %s. Confirm to install." % (date, verdict, src))
+        return ("ask", raw, "Audited %s at %s: %s for %s. Confirm to install."
+                % (date, sha or "no version recorded", verdict, src))
     return ("deny", first, "No approved audit for %s. Run skill-security-audit first." % (first or "this source"))
 
 
@@ -235,8 +259,8 @@ def split_redirs(words):
     out, redirs, i = [], [], 0
     while i < len(words):
         w = words[i]
-        if w and set(w) <= set("<>"):
-            if w in (">", ">>") and i + 1 < len(words):
+        if w and set(w) <= set("<>&") and ("<" in w or ">" in w):
+            if w in (">", ">>", ">|", "&>", "&>>") and i + 1 < len(words):
                 redirs.append(words[i + 1])
             i += 2
             continue
@@ -384,13 +408,134 @@ def seg_result(words, redirs, depth):
     return None
 
 
+READ_ONLY = ("ls", "cat", "head", "tail", "grep", "rg", "wc", "diff", "stat", "file", "du", "tree")
+FIND_WRITES = ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls")
+SHELLS = ("bash", "sh", "zsh", "dash")
+NEUTRAL = ("cd", "pushd", "popd")
+COPY_CMDS = ("cp", "rsync", "ditto")  # their sources are only read; the destination is checked
+INLINE = (  # interpreter -> flag that takes inline code
+    (r"^python[\d.]*$", r"^-[A-Za-z]*c$"),
+    (r"^node(js)?$", r"^(-[A-Za-z]*[ep]|--eval|--print)$"),
+    (r"^perl$", r"^-[A-Za-z]*[eE]$"),
+    (r"^ruby$", r"^-[A-Za-z]*e$"),
+    (r"^osascript$", r"^-[A-Za-z]*e$"),
+)
+
+
+def is_read_only(words):
+    import posixpath
+    words = strip_prefix(words)
+    if not words:
+        return False
+    cmd = posixpath.basename(words[0]).lower()
+    args = words[1:]
+    if cmd == "find":
+        return not any(a in FIND_WRITES for a in args)
+    if cmd == "tree":
+        return not any(a == "-o" or (a.startswith("-") and not a.startswith("--") and a.endswith("o")) for a in args)
+    return cmd in READ_ONLY
+
+
+def own_script_args(words):
+    """python3 [flags] <guard script from the skill's scripts/ folder> args -> args after the script, else None."""
+    import posixpath
+    import re
+    if not re.match(r"^python[\d.]*$", posixpath.basename(words[0]).lower()):
+        return None
+    scripts = posixpath.join(LOG_DIR, "scripts").lower()
+    for i, a in enumerate(words[1:], 1):
+        if a.startswith("-"):
+            if re.match(r"^-[A-Za-z]*[cm]$", a):
+                return None
+            continue
+        sp = expand(a).lower()
+        return words[i + 1:] if posixpath.dirname(sp) == scripts and sp.endswith(".py") else None
+    return None
+
+
+def inline_code_touches_claude(cmd, args):
+    import re
+    for cre, fre in INLINE:
+        if re.match(cre, cmd):
+            for i, a in enumerate(args):
+                if re.match(fre, a):
+                    code = " ".join(args[i + 1:]).lower()
+                    if ".claude" in code or any(n in code for n in CONFIG_NAMES) \
+                            or re.search(r"settings[^/\s'\"]*\.json", code):
+                        return True
+    return False
+
+
+def fallback(words, redirs):
+    """Any command that touches a protected place and is not clearly read-only -> ask (S2 hardening).
+    Runs per segment, after the specific install checks. words: prefix-stripped command words."""
+    import posixpath
+    kinds = [p_kind(r, True) for r in redirs]
+    src = next((r for r, k in zip(redirs, kinds) if k), "")
+    if words:
+        cmd = posixpath.basename(words[0]).lower()
+        args = words[1:]
+        if cmd in SHELLS and any(a == "-c" or (a.startswith("-") and a.endswith("c")) for a in args):
+            pass  # the inner command line was already checked on its own
+        else:
+            rest = own_script_args(words)
+            if rest is not None:  # the guard's own scripts (scan.py ...): allowed, except recording a result
+                if any(a == "--mark-clean" or a.startswith("--mark-clean=") for a in rest):
+                    return ("ask", "--mark-clean", AUDIT_MSG)
+                out = flag_value(rest, ["--out", "--output", "-o"])
+                if out and p_kind(out, True):
+                    kinds.append("p")
+                    src = src or out
+            elif inline_code_touches_claude(cmd, args):
+                kinds.append("p")
+                src = src or " ".join(words)[:120]
+            elif cmd in NEUTRAL:
+                pass  # cd/pushd: judged on the whole line by check_bash
+            elif not is_read_only(words):
+                cand = []
+                nonflag = [i for i, a in enumerate(args) if not a.startswith("-")]
+                skip = set()
+                if cmd in COPY_CMDS and not any(a in ("-t", "--target-directory") or a.startswith("--remove-source")
+                                                 or a.startswith("--target-directory=") for a in args):
+                    skip = set(nonflag[:-1])  # copying OUT of a protected folder just reads it
+                for i, a in enumerate(args):
+                    if i in skip:
+                        continue
+                    cand.append(a)
+                    if "=" in a:
+                        cand.append(a.split("=", 1)[1])
+                for a in cand:
+                    k = p_kind(a, True)
+                    if k:
+                        kinds.append(k)
+                        src = src or a
+    if not any(kinds):
+        return None
+    return ("ask", src, AUDIT_MSG if "audit" in kinds else FALLBACK_MSG)
+
+
 def check_bash(cmd, depth=0):
-    results = []
+    import posixpath
+    results, segs = [], []
     for words in tokenize(cmd):
         words, redirs = split_redirs(words)
+        words2 = strip_prefix(words)
+        segs.append((words2, redirs))
         r = seg_result(words, redirs, depth)
+        if not r:
+            r = fallback(words2, redirs)
         if r:
             results.append(r)
+    # cd / pushd into a protected place, then anything that is not read-only later on the same line
+    for i, (words, _) in enumerate(segs):
+        if words and posixpath.basename(words[0]).lower() in ("cd", "pushd") \
+                and any(p_kind(a, True) for a in words[1:] if not a.startswith("-")):
+            for later, redirs in segs[i + 1:]:
+                neutral = later and posixpath.basename(later[0]).lower() in NEUTRAL and not redirs
+                if not neutral and (redirs or not is_read_only(later)):
+                    results.append(("ask", " ".join(words)[:120], FALLBACK_MSG))
+                    break
+            break
     for want in ("deny", "ask"):
         for r in results:
             if r[0] == want:

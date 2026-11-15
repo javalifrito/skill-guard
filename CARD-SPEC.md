@@ -174,15 +174,26 @@ Allowed calls print nothing and exit 0.
 **Decisions:**
 1. `skills add` / `skills install` with `-y` or `--yes` anywhere → **deny** always ("auto-confirm skips the audit; run it without -y after the audit").
 2. Writes to settings / `.mcp.json` / `~/.claude.json` / `claude_desktop_config.json` → **ask** (a human confirms every config change; no audit lookup).
-3. Writes under the skills/agents/commands/plugins/hooks folders: if the path is inside `~/.claude/skills/skill-security-audit/` and the file name is one of `audit-log.md`, `audit-cache.json`, `cost-log.jsonl`, `calibration.json` → no decision (the skill's own logs). Otherwise **ask**.
+3. Writes under the skills/agents/commands/plugins/hooks folders: if the path is inside `~/.claude/skills/skill-security-audit/` and the file name is `cost-log.jsonl` or `calibration.json` → no decision (the skill's own logs). `audit-log.md` and `audit-cache.json` → **ask** ("Recording an audit result. Confirm it matches the verdict you were shown."), whether written with a Write/Edit tool or from the shell (S2 hardening, 2026-11-15). Anything else under those folders → **ask**.
 4. Bash installs: find the source in the command (`owner/repo`, a GitHub URL, a marketplace `name@marketplace`, or the local source path for cp/mv/rsync/unzip). Look it up in `~/.claude/skills/skill-security-audit/audit-log.md` (newest row wins; Source@SHA column; match on the lowercase owner/repo, URL path, plugin name or path basename):
    - No row, or the newest row is REJECT → **deny**: "No approved audit for <source>. Run skill-security-audit first."
    - APPROVE / APPROVE WITH CONDITIONS, but older than 7 days → **deny** ("audit is stale, re-audit (the source may have changed)").
    - The command pins a ref (`@<sha/tag>`, `#<sha>`, `--ref`) that differs from the logged SHA → **deny** ("audited <sha>, installing <ref>").
-   - Otherwise → **ask**, with the reason "Audited <date>: <verdict> for <source>@<sha>. Confirm to install." (the human click is the approval; the hook never auto-allows an install).
+   - Otherwise → **ask**, with the reason "Audited <date> at <sha or 'no version recorded'>: <verdict> for <source>. Confirm to install." (the human click is the approval; the hook never auto-allows an install).
    - Own builds: a local source path inside the vault factory folder (`…/Obsidian Vault/Projects/03 Skills-plugins factory/`) → **ask** with "Syncing your own build from the vault" (no audit-log lookup; this is how vault → install syncs work).
    - Source can't be determined → **ask** with "skill-guard couldn't identify the source; make sure it was audited."
-5. Every decision appends one line to `~/.claude/skills/skill-security-audit/guard-log.jsonl` (time, tool, decision, source, reason; no command text beyond 200 chars). Add it to `.gitignore`.
+5. **Fallback for anything not on the list above (S2 hardening, 2026-11-15).** The specific checks above stay first, because they give the helpful "no approved audit" deny. After them, each command segment goes through a general rule: any shell command that touches a protected place (**P**) and is not clearly read-only → **ask** ("This command changes Claude's skills, plugins or settings. Confirm you want it."). **P** is any path matching `(^|/)\.claude/(skills|agents|commands|plugins|hooks)(/|$)`; `.claude/settings*.json`, `.mcp.json`, `.claude.json`, `claude_desktop_config.json`; and the guard's own `audit-log.md` / `audit-cache.json` (those get the audit-result message from decision 3). A segment asks when any of these is true:
+   - a redirect target (`>`, `>>`, `>|`, `&>`) is in P (any command, including read-only ones);
+   - it is `cd` or `pushd` into P and a later segment on the same line is not read-only (a redirect counts as not read-only; further `cd`/`pushd`/`popd` do not);
+   - any argument (or the value after `=`, as in `dd of=...`) is in P and the command is not in the read-only list `ls cat head tail grep rg wc diff stat file du tree find` (`find` is read-only only without `-delete -exec -execdir -ok -okdir -fprint*`; `tree` only without `-o`). This covers `tee dd sed -i touch mkdir rm chmod chown truncate mv ln` and every command nobody listed. Sources of `cp`/`rsync`/`ditto` are only read, so copying out of a protected folder stays silent unless `-t`, `--target-directory` or `--remove-source-files` is used;
+   - it is an inline interpreter (`python`/`python3 -c`, `node -e`, `perl -e`, `ruby -e`, `osascript -e`) and the code string contains `.claude` or a config file name.
+
+   Two additions beyond the P patterns, for shell arguments only: the bare `.claude` folder (so `rm -rf ~/.claude` and `cd ~/.claude && rm -rf skills` ask) and a glob directly under it (`~/.claude/*`).
+
+   The guard's own scripts (`python3 [flags] ~/.claude/skills/skill-security-audit/scripts/<name>.py ...`) stay allowed. `--mark-clean` → **ask** with the audit-result message; an `--out`/`-o` value in P → **ask** with the fallback message.
+
+   **Out of scope on purpose:** variables, encoded text, or a script written somewhere else and run later. A hook only sees the command text, so this cannot be caught; the README says so (S16).
+6. Every decision appends one line to `~/.claude/skills/skill-security-audit/guard-log.jsonl` (time, tool, decision, source, reason; no command text beyond 200 chars). Add it to `.gitignore`.
 
 **Settings snippet** (in `README` and `hooks/settings-snippet.json`; applied **only** after the user's explicit OK, never by Claude on its own):
 ```json
@@ -191,7 +202,7 @@ Allowed calls print nothing and exit 0.
 
 **Known limits (state them in README):** a determined agent could edit `audit-log.md` first (that's why installs are `ask`, never `allow`); slash commands typed by the user aren't covered; other platforms have no hooks (PORTING.md).
 
-**Tests** (`tests/test_guard_hook.py`, fixtures as JSON on stdin, a temp `HOME` with its own audit-log): `-y` → deny; unaudited `npx skills add a/b` → deny; approved row → ask; REJECT → deny; stale → deny; pinned SHA mismatch → deny; `cp -r x ~/.claude/skills/x` without a row → deny; Write to `~/.claude/settings.json` → ask; Write to the skill's own `audit-log.md` → no output; `cp` from the vault factory folder into `~/.claude/skills/x` → ask; unrelated `ls` → no output; malformed JSON → ask; chained `cd x && npx skills add a/b -y` → deny; timing < 50 ms median for the fast path.
+**Tests** (`tests/test_guard_hook.py`, fixtures as JSON on stdin, a temp `HOME` with its own audit-log): `-y` → deny; unaudited `npx skills add a/b` → deny; approved row → ask; REJECT → deny; stale → deny; pinned SHA mismatch → deny; `cp -r x ~/.claude/skills/x` without a row → deny; Write to `~/.claude/settings.json` → ask; Write to the skill's own `audit-log.md` → no output; `cp` from the vault factory folder into `~/.claude/skills/x` → ask; unrelated `ls` → no output; fallback (S2): `echo hi > ~/.claude/skills/evil/SKILL.md`, `cd ~/.claude/skills && git clone …`, `python3 -c "open('…/.claude/settings.json','w')…"`, `tee ~/.claude/settings.json`, a Write to the skill's `audit-log.md` and `echo … >> …/audit-log.md` → ask; `ls`/`cat`/`grep -r` on those places and `python3 -I …/scripts/scan.py /tmp/x` → no output; malformed JSON → ask; chained `cd x && npx skills add a/b -y` → deny; timing < 50 ms median for the fast path.
 
 ## 12. Fix mode (build step 3, decided 2026-11-08)
 Implements ROADMAP §5. **The original is never modified.** Fix mode starts only after the card is shown and the user says yes to fixing.

